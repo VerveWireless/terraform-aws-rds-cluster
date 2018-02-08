@@ -8,26 +8,33 @@ module "label" {
   tags       = "${var.tags}"
 }
 
-resource "aws_security_group" "default" {
+resource "aws_security_group" "security_group" {
   name        = "${module.label.id}"
   description = "Allow all inbound traffic from the security groups"
   vpc_id      = "${var.vpc_id}"
 
-  ingress {
-    from_port       = "${var.db_port}"
-    to_port         = "${var.db_port}"
-    protocol        = "tcp"
-    security_groups = ["${var.security_groups}"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   tags = "${module.label.tags}"
+}
+
+resource "aws_security_group_rule" "egress" {
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  cidr_blocks       = ["0.0.0.0/0"]
+  description       = "allow egress traffic"
+  security_group_id = "${aws_security_group.security_group.id}"
+}
+
+# allow puppetdb port in
+resource "aws_security_group_rule" "db_ingress" {
+  type              = "ingress"
+  from_port         = "${var.db_port}"
+  to_port           = "${var.db_port}"
+  protocol          = "tcp"
+  cidr_blocks       = ["${var.allowed_cidrs}"]
+  description       = "allow ingress db"
+  security_group_id = "${aws_security_group.security_group.id}"
 }
 
 resource "aws_rds_cluster" "default" {
@@ -42,7 +49,7 @@ resource "aws_rds_cluster" "default" {
   skip_final_snapshot             = true
   apply_immediately               = true
   snapshot_identifier             = "${var.snapshot_identifier}"
-  vpc_security_group_ids          = ["${aws_security_group.default.id}"]
+  vpc_security_group_ids          = ["${aws_security_group.security_group.id}"]
   preferred_maintenance_window    = "${var.maintenance_window}"
   db_subnet_group_name            = "${aws_db_subnet_group.default.name}"
   db_cluster_parameter_group_name = "${aws_rds_cluster_parameter_group.default.name}"
@@ -81,7 +88,7 @@ resource "aws_rds_cluster_parameter_group" "default" {
 module "dns_master" {
   source    = "git::https://github.com/cloudposse/terraform-aws-route53-cluster-hostname.git?ref=tags/0.2.1"
   namespace = "${var.namespace}"
-  name      = "master.${var.name}"
+  name      = "master-${var.name}"
   stage     = "${var.stage}"
   zone_id   = "${var.zone_id}"
   records   = ["${aws_rds_cluster.default.endpoint}"]
@@ -90,7 +97,7 @@ module "dns_master" {
 module "dns_replicas" {
   source    = "git::https://github.com/cloudposse/terraform-aws-route53-cluster-hostname.git?ref=tags/0.2.1"
   namespace = "${var.namespace}"
-  name      = "replicas.${var.name}"
+  name      = "replicas-${var.name}"
   stage     = "${var.stage}"
   zone_id   = "${var.zone_id}"
   records   = ["${aws_rds_cluster.default.reader_endpoint}"]

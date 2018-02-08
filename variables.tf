@@ -1,3 +1,8 @@
+variable "allowed_cidrs" {
+  type        = "list"
+  description = "cidrs allowed to access db"
+}
+
 variable "namespace" {
   type        = "string"
   description = "Namespace (e.g. `cp` or `cloudposse`)"
@@ -16,11 +21,6 @@ variable "name" {
 variable "zone_id" {
   type        = "string"
   description = "Route53 parent zone ID. The module will create sub-domain DNS records in the parent zone for the DB master and replicas"
-}
-
-variable "security_groups" {
-  type        = "list"
-  description = "List of security groups to be allowed to connect to the DB instance"
 }
 
 variable "vpc_id" {
